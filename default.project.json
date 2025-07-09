@@ -12,7 +12,10 @@
     "ServerScriptService": {
       "Server": {
         "$path": "src/server"
-      }
+      },
+      "BoatAssignment": {
+        "$path": "src/server/BoatAssignment.server.luau"
+      },
     },
 
     "StarterPlayer": {
@@ -22,6 +25,12 @@
         },
         "SoundFinder": {
           "$path": "src/client/SoundFinder.client.lua"
+        },
+        "CheckMaterialButtons": {
+          "$path": "src/client/CheckMaterialButtons.client.lua"
+        },
+        "MaterialClickHandler": {
+          "$path": "src/client/MaterialClickHandler.client.lua"
         }
       }
     },

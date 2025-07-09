@@ -1,3 +1,5 @@
+-- LocalScript: MaterialClickHandler.client.lua
+
 local SoundService = game:GetService("SoundService")
 
 local sound = SoundService:FindFirstChild("CountdownSounds")
