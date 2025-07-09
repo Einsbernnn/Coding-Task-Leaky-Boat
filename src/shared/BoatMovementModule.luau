@@ -1,21 +1,18 @@
 -- BoatMovementModule.luau
--- This module is the single source of truth for boat movement and speed boost logic.
--- Used by both BoatSinkController and BoatMovement server scripts.
 
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
-local Workspace = game:GetService("Workspace")
 
-local boatsFolder = Workspace:WaitForChild("Boats")
-local finishLine = Workspace:WaitForChild("FinishLine")
+local BoatMovement = {}
+BoatMovement.OnBoatFinish = Instance.new("BindableEvent")
 
 local raceDuration = 40
-
+local finishLineZ = 18.841
 local finishZOffsets = {
-	[1] = -30, -- Boat_1
-	[2] = -10, -- Boat_2
-	[3] = 10,  -- Boat_3
-	[4] = 30   -- Boat_4
+	[1] = -30,
+	[2] = -10,
+	[3] = 10,
+	[4] = 30
 }
 
 local boatTweens = {}
@@ -31,15 +28,18 @@ local function getMainPart(model)
 	return nil
 end
 
-local function moveBoatModel(boatModel, finishTargetPos, player, onFinish)
-	print("[DEBUG] moveBoatModel called for:", boatModel and boatModel.Name or "nil")
-	if not boatModel then print("[ERROR] boatModel is nil!") return end
-	if not boatModel.PrimaryPart then print("[ERROR] PrimaryPart missing for boat:", boatModel.Name) return end
+function BoatMovement.StartBoat(boatModel, player)
+	if not boatModel or not boatModel:IsA("Model") or not getMainPart(boatModel) then
+		warn("[BoatMovement] Invalid boat model provided to StartBoat.")
+		return
+	end
+
 	local startCFrame = boatModel:GetPivot()
 	local startPos = startCFrame.Position
-	local finishPos = Vector3.new(finishTargetPos.X, startPos.Y, finishTargetPos.Z)
-	local direction = (finishPos - startPos).Unit
-	local distance = (finishPos - startPos).Magnitude
+	local boatIndex = tonumber(string.match(boatModel.Name, "_(%d+)$")) or 1
+	local baseDistance = 100
+	local zOffset = finishZOffsets[boatIndex] or 0
+	local totalDistance = baseDistance + zOffset
 
 	local progress = Instance.new("NumberValue")
 	progress.Value = 0
@@ -49,20 +49,24 @@ local function moveBoatModel(boatModel, finishTargetPos, player, onFinish)
 	boatTargetTimes[boatModel] = duration
 	boatStartTimes[boatModel] = tick()
 
-	print("[DEBUG] Creating tween for boat:", boatModel.Name, "duration:", duration)
 	local tween = TweenService:Create(progress, TweenInfo.new(duration, Enum.EasingStyle.Linear), { Value = 1 })
 	boatTweens[boatModel] = tween
 
+	local finished = false
 	local connection
 	connection = RunService.Heartbeat:Connect(function()
 		local alpha = progress.Value
-		local currentPos = startPos + direction * distance * alpha
-		local newCFrame = CFrame.new(currentPos, currentPos + direction)
+		local forwardOffset = totalDistance * alpha
+		local newCFrame = startCFrame * CFrame.new(0, 0, forwardOffset)
 		boatModel:PivotTo(newCFrame)
-		-- Force zero velocity to override water/physics
-		if boatModel.PrimaryPart then
-			boatModel.PrimaryPart.AssemblyLinearVelocity = Vector3.new(0,0,0)
-			boatModel.PrimaryPart.AssemblyAngularVelocity = Vector3.new(0,0,0)
+
+		-- Finish detection
+		if not finished then
+			local mainPart = getMainPart(boatModel)
+			if mainPart and math.abs(mainPart.Position.Z - finishLineZ) < 2 then
+				finished = true
+				BoatMovement.OnBoatFinish:Fire(player)
+			end
 		end
 	end)
 
@@ -73,16 +77,12 @@ local function moveBoatModel(boatModel, finishTargetPos, player, onFinish)
 		boatProgressValues[boatModel] = nil
 		boatStartTimes[boatModel] = nil
 		boatTargetTimes[boatModel] = nil
-		print("✅", boatModel.Name, "reached target.")
-		if onFinish then onFinish(boatModel, player) end
 	end)
 
-	print("[DEBUG] Playing tween for boat:", boatModel.Name)
 	tween:Play()
-	print("🚤", boatModel.Name, "started moving.")
 end
 
-local function ApplyBoatSpeedBoost(boatModel, percentBoost)
+function BoatMovement.ApplyBoatSpeedBoost(boatModel, percentBoost)
 	local progress = boatProgressValues[boatModel]
 	local tween = boatTweens[boatModel]
 	if not progress or not tween then return end
@@ -97,6 +97,7 @@ local function ApplyBoatSpeedBoost(boatModel, percentBoost)
 
 	tween:Cancel()
 
+	local currentValue = progress.Value
 	local newTween = TweenService:Create(progress, TweenInfo.new(newRemaining, Enum.EasingStyle.Linear), { Value = 1 })
 	boatTweens[boatModel] = newTween
 	newTween.Completed:Connect(function()
@@ -107,33 +108,8 @@ local function ApplyBoatSpeedBoost(boatModel, percentBoost)
 		boatTweens[boatModel] = nil
 		boatStartTimes[boatModel] = nil
 		boatTargetTimes[boatModel] = nil
-		print("✅", boatModel.Name, "reached target (boosted).")
 	end)
 	newTween:Play()
 end
 
-local function StartAllBoats(onFinish)
-	print("[DEBUG] StartAllBoats called")
-	for i = 1, 4 do
-		local boat = boatsFolder:FindFirstChild("Boat_" .. i)
-		if boat then
-			print("[DEBUG] Found boat:", boat.Name)
-			local finishPart = getMainPart(finishLine)
-			if finishPart then
-				local offsetZ = finishZOffsets[i] or 0
-				local targetPos = finishPart.Position + Vector3.new(0, 0, offsetZ)
-				moveBoatModel(boat, targetPos, nil, onFinish)
-			else
-				warn("❌ FinishLine part not found.")
-			end
-		else
-			warn("🚫 Missing Boat_" .. i)
-		end
-	end
-end
-
-return {
-	moveBoatModel = moveBoatModel,
-	ApplyBoatSpeedBoost = ApplyBoatSpeedBoost,
-	StartAllBoats = StartAllBoats
-} 
+return BoatMovement 

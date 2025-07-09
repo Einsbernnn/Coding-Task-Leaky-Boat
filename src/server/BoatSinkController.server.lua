@@ -87,7 +87,8 @@ clickEvent.OnServerEvent:Connect(function(player, material, isCorrect)
 		-- Apply speed boost
 		local boat = data.boat
 		if boat then
-			BoatMovement.ApplyBoatSpeedBoost(boat, 0.10) -- 10% speed boost per correct material
+			BoatMovement.ApplyBoatSpeedBoost(boat, 0.25) -- 25% speed boost per correct material
+			print("Speed boost applied to", boat.Name, "for player", player.Name)
 		end
 	end
 end)
