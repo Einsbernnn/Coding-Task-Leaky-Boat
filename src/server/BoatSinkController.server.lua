@@ -8,6 +8,8 @@ local boatFolder = workspace:WaitForChild("Boats")
 
 local playerData = {}
 
+local BoatMovement = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("BoatMovementModule"))
+
 -- Initialize player data
 local function initPlayer(player)
 	playerData[player] = {
@@ -38,12 +40,20 @@ local function startSinking(player)
 	local primaryPart = boat.PrimaryPart
 	if not primaryPart then return end
 
+	-- Sinking parameters
+	local totalSinkTime = 20 -- seconds to fully sink if no action
+	local sinkSteps = 200    -- 0.1s per step
+	local sinkPerStep = 1 / sinkSteps -- percent per step
+	local baseSinkRate = 0.05 -- base Y offset per step
+
 	task.spawn(function()
-		for i = 1, 200 do
+		for i = 1, sinkSteps do
 			if not player or not player.Character or not player.Character:FindFirstChild("Humanoid") then break end
 			if data.correctClicks >= 4 then break end
 
-			primaryPart.Position -= Vector3.new(0, 0.05 * data.sinkRate, 0)
+			-- Sinking rate decreases as correctClicks increases
+			local rate = math.max(0.2, data.sinkRate)
+			primaryPart.Position -= Vector3.new(0, baseSinkRate * rate, 0)
 
 			task.wait(0.1)
 		end
@@ -59,7 +69,7 @@ clickEvent.OnServerEvent:Connect(function(player, material, isCorrect)
 	local data = playerData[player]
 	if not data then return end
 
-	if isCorrect then
+	if isCorrect and data.correctClicks < 4 then
 		data.correctClicks += 1
 		data.sinkRate = math.max(0.2, data.sinkRate - 0.2)
 
@@ -74,11 +84,10 @@ clickEvent.OnServerEvent:Connect(function(player, material, isCorrect)
 			correctVal.Value = data.correctClicks
 		end
 
-		-- Apply boost
+		-- Apply speed boost
 		local boat = data.boat
-		if boat and boat.PrimaryPart then
-			local velocity = Vector3.new(-1, 0, 0) * (20 + data.correctClicks * 5)
-			boat.PrimaryPart.AssemblyLinearVelocity = velocity
+		if boat then
+			BoatMovement.ApplyBoatSpeedBoost(boat, 0.10) -- 10% speed boost per correct material
 		end
 	end
 end)

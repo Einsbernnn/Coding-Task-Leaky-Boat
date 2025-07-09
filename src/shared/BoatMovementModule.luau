@@ -1,4 +1,6 @@
--- File: BoatMovementController.lua
+-- BoatMovementModule.luau
+-- This module is the single source of truth for boat movement and speed boost logic.
+-- Used by both BoatSinkController and BoatMovement server scripts.
 
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -9,7 +11,6 @@ local finishLine = Workspace:WaitForChild("FinishLine")
 
 local raceDuration = 40
 
--- Offsets per boat to avoid overlapping at finish
 local finishZOffsets = {
 	[1] = -30, -- Boat_1
 	[2] = -10, -- Boat_2
@@ -22,7 +23,6 @@ local boatProgressValues = {}
 local boatStartTimes = {}
 local boatTargetTimes = {}
 
--- Get a usable part from a model
 local function getMainPart(model)
 	if model.PrimaryPart then return model.PrimaryPart end
 	for _, p in ipairs(model:GetDescendants()) do
@@ -31,26 +31,16 @@ local function getMainPart(model)
 	return nil
 end
 
--- Move a boat straight forward to a custom finish point, with dynamic duration
-local function moveBoatModel(boatModel, finishTargetPos, player)
-	-- Safety check: Ensure boatModel is valid and has a PrimaryPart
-	if not boatModel or not boatModel:IsA("Model") or not getMainPart(boatModel) then
-		warn("[BoatMovement] Invalid boat model provided to moveBoatModel.")
-		return
-	end
-
+local function moveBoatModel(boatModel, finishTargetPos, player, onFinish)
+	print("[DEBUG] moveBoatModel called for:", boatModel and boatModel.Name or "nil")
+	if not boatModel then print("[ERROR] boatModel is nil!") return end
+	if not boatModel.PrimaryPart then print("[ERROR] PrimaryPart missing for boat:", boatModel.Name) return end
 	local startCFrame = boatModel:GetPivot()
 	local startPos = startCFrame.Position
+	local finishPos = Vector3.new(finishTargetPos.X, startPos.Y, finishTargetPos.Z)
+	local direction = (finishPos - startPos).Unit
+	local distance = (finishPos - startPos).Magnitude
 
-	-- Determine boat index from its name (e.g., 'Boat_1' -> 1)
-	local boatIndex = tonumber(string.match(boatModel.Name, "_(%d+)$")) or 1
-
-	-- Only move forward along the boat's local Z axis, with a unique offset for each boat
-	local baseDistance = 100 -- studs forward; adjust as needed
-	local zOffset = finishZOffsets[boatIndex] or 0
-	local totalDistance = baseDistance + zOffset
-
-	-- Tween controller
 	local progress = Instance.new("NumberValue")
 	progress.Value = 0
 	boatProgressValues[boatModel] = progress
@@ -59,23 +49,20 @@ local function moveBoatModel(boatModel, finishTargetPos, player)
 	boatTargetTimes[boatModel] = duration
 	boatStartTimes[boatModel] = tick()
 
+	print("[DEBUG] Creating tween for boat:", boatModel.Name, "duration:", duration)
 	local tween = TweenService:Create(progress, TweenInfo.new(duration, Enum.EasingStyle.Linear), { Value = 1 })
 	boatTweens[boatModel] = tween
 
-	local lastPrintedPercent = 0
 	local connection
 	connection = RunService.Heartbeat:Connect(function()
 		local alpha = progress.Value
-		-- Move only forward along the boat's original facing direction (local Z axis)
-		local forwardOffset = totalDistance * alpha
-		local newCFrame = startCFrame * CFrame.new(0, 0, forwardOffset)
+		local currentPos = startPos + direction * distance * alpha
+		local newCFrame = CFrame.new(currentPos, currentPos + direction)
 		boatModel:PivotTo(newCFrame)
-
-		-- Print progress every 10%
-		local percent = math.floor(alpha * 100)
-		if percent >= lastPrintedPercent + 10 then
-			print(string.format("%s progress: %d%%", boatModel.Name, percent))
-			lastPrintedPercent = percent
+		-- Force zero velocity to override water/physics
+		if boatModel.PrimaryPart then
+			boatModel.PrimaryPart.AssemblyLinearVelocity = Vector3.new(0,0,0)
+			boatModel.PrimaryPart.AssemblyAngularVelocity = Vector3.new(0,0,0)
 		end
 	end)
 
@@ -87,14 +74,15 @@ local function moveBoatModel(boatModel, finishTargetPos, player)
 		boatStartTimes[boatModel] = nil
 		boatTargetTimes[boatModel] = nil
 		print("✅", boatModel.Name, "reached target.")
+		if onFinish then onFinish(boatModel, player) end
 	end)
 
+	print("[DEBUG] Playing tween for boat:", boatModel.Name)
 	tween:Play()
 	print("🚤", boatModel.Name, "started moving.")
 end
 
--- Function to apply a speed boost to a boat (reduce remaining duration)
-function ApplyBoatSpeedBoost(boatModel, percentBoost)
+local function ApplyBoatSpeedBoost(boatModel, percentBoost)
 	local progress = boatProgressValues[boatModel]
 	local tween = boatTweens[boatModel]
 	if not progress or not tween then return end
@@ -104,7 +92,7 @@ function ApplyBoatSpeedBoost(boatModel, percentBoost)
 	local remaining = oldTarget - elapsed
 	if remaining <= 0 then return end
 
-	local newRemaining = math.max(remaining * (1 - percentBoost), 2) -- never less than 2s
+	local newRemaining = math.max(remaining * (1 - percentBoost), 2)
 	boatTargetTimes[boatModel] = elapsed + newRemaining
 
 	tween:Cancel()
@@ -124,15 +112,28 @@ function ApplyBoatSpeedBoost(boatModel, percentBoost)
 	newTween:Play()
 end
 
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local BoatMovement = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("BoatMovementModule"))
-
-BoatMovement.StartAllBoats()
-
--- ✅ Timer for debugging
-task.spawn(function()
-	for t = 1, raceDuration do
-		wait(1)
-		print("⏱️ Time:", t .. "s")
+local function StartAllBoats(onFinish)
+	print("[DEBUG] StartAllBoats called")
+	for i = 1, 4 do
+		local boat = boatsFolder:FindFirstChild("Boat_" .. i)
+		if boat then
+			print("[DEBUG] Found boat:", boat.Name)
+			local finishPart = getMainPart(finishLine)
+			if finishPart then
+				local offsetZ = finishZOffsets[i] or 0
+				local targetPos = finishPart.Position + Vector3.new(0, 0, offsetZ)
+				moveBoatModel(boat, targetPos, nil, onFinish)
+			else
+				warn("❌ FinishLine part not found.")
+			end
+		else
+			warn("🚫 Missing Boat_" .. i)
+		end
 	end
-end)
+end
+
+return {
+	moveBoatModel = moveBoatModel,
+	ApplyBoatSpeedBoost = ApplyBoatSpeedBoost,
+	StartAllBoats = StartAllBoats
+} 

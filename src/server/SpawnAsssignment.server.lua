@@ -28,6 +28,38 @@ local function spawnPlayerAtBoat(player, boat)
 			hrp.CFrame = spawnPart.CFrame * CFrame.new(0, 3, 0)
 			print("Spawned " .. player.Name .. " at " .. spawnPart:GetFullName())
 
+			-- Remove any existing WeldConstraint
+			local existingWeld = hrp:FindFirstChild("BoatWeld")
+			if existingWeld then
+				existingWeld:Destroy()
+			end
+
+			-- Strictly lock player to boat using Heartbeat update
+			if hrp:FindFirstChild("BoatLock") then
+				hrp.BoatLock:Destroy()
+			end
+			local lock = Instance.new("BoolValue")
+			lock.Name = "BoatLock"
+			lock.Parent = hrp
+
+			-- Prevent movement
+			local humanoid = character:FindFirstChildOfClass("Humanoid")
+			if humanoid then
+				humanoid.WalkSpeed = 0
+				humanoid.JumpPower = 0
+			end
+
+			-- Heartbeat connection to keep player on boat
+			local conn
+			conn = game:GetService("RunService").Heartbeat:Connect(function()
+				if not lock.Parent or not hrp or not hrp.Parent or not spawnPart or not spawnPart.Parent then
+					if conn then conn:Disconnect() end
+					return
+				end
+				-- Keep player strictly above the spawnPart
+				hrp.CFrame = spawnPart.CFrame * CFrame.new(0, 3, 0)
+			end)
+
 			-- Tell client to reset camera
 			resetCameraEvent:FireClient(player)
 		else
@@ -41,6 +73,19 @@ local function spawnPlayerAtBoat(player, boat)
 		character:WaitForChild("HumanoidRootPart")
 		task.wait(0.2)
 		moveCharacter()
+	end)
+
+	-- Cleanup lock on player removal
+	player.AncestryChanged:Connect(function(_, parent)
+		if not parent then
+			if player.Character then
+				local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+				if hrp then
+					local lock = hrp:FindFirstChild("BoatLock")
+					if lock then lock:Destroy() end
+				end
+			end
+		end
 	end)
 end
 

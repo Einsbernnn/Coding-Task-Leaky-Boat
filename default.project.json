@@ -15,7 +15,7 @@
       },
       "BoatAssignment": {
         "$path": "src/server/BoatAssignment.server.luau"
-      },
+      }
     },
 
     "StarterPlayer": {
