@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Music Login</title>
+  <style>
+    body {
+      background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      margin: 0;
+    }
+    .login-container {
+      background: rgba(255,255,255,0.95);
+      border-radius: 16px;
+      box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+      padding: 40px 32px;
+      width: 350px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+    }
+    .music-icon {
+      font-size: 48px;
+      color: #2a5298;
+      margin-bottom: 16px;
+      animation: bounce 1.5s infinite alternate;
+    }
+    @keyframes bounce {
+      0% { transform: translateY(0); }
+      100% { transform: translateY(-10px); }
+    }
+    h2 {
+      margin: 0 0 24px 0;
+      color: #1e3c72;
+      font-weight: 700;
+      letter-spacing: 1px;
+    }
+    .login-form {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .login-form input {
+      padding: 12px;
+      border: 1px solid #b0c4de;
+      border-radius: 8px;
+      font-size: 16px;
+      outline: none;
+      transition: border 0.2s;
+    }
+    .login-form input:focus {
+      border: 1.5px solid #2a5298;
+    }
+    .login-form button {
+      background: linear-gradient(90deg, #1e3c72 0%, #2a5298 100%);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 18px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .login-form button:hover {
+      background: linear-gradient(90deg, #2a5298 0%, #1e3c72 100%);
+    }
+    .note {
+      margin-top: 20px;
+      color: #2a5298;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .note svg {
+      width: 20px;
+      height: 20px;
+      fill: #2a5298;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <div class="music-icon">&#127925;</div>
+    <h2>Music Login</h2>
+    <form class="login-form">
+      <input type="text" placeholder="Username" required>
+      <input type="password" placeholder="Password" required>
+      <button type="submit">Log In</button>
+    </form>
+    <div class="note">
+      <svg viewBox="0 0 24 24"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg>
+      Let the music play as you log in!
+    </div>
+  </div>
+</body>
+</html>
